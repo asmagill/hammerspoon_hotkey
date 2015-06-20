@@ -383,13 +383,20 @@ local eventWatcher ; eventWatcher = et.new({
         et_events.tapdisabledbyuserinput,
 
     }, function(theEvent)
+
+        -- long pauses make OS X event tap notifier sad...
+        -- let's see if this helps by stopping it until
+        -- we're done.
+
+        eventWatcher:stop()
+
+        local weAteTheEvent   = nil
         local whyWeWereCalled = theEvent:getType()
 
         if (whyWeWereCalled == et_events.types.tapdisabledbytimeout) or
            (whyWeWereCalled == et_events.types.tapdisabledbyuserinput) then
                 print("-- "..os.date("%c",os.time())..": hotkey event tap restarted")
-                eventWatcher:start()
-                return true
+                weAteTheEvent = true
         else
             local eventKey = {
                 keyCode = theEvent:getKeyCode(),
@@ -411,22 +418,28 @@ local eventWatcher ; eventWatcher = et.new({
                     matchedKey.fired = false
                     if matchedKey.keyUp then matchedKey.keyUp() end
                 end
-                return true
+                weAteTheEvent = true
             else
-                return false
+                weAteTheEvent = false
             end
         end
+
+        if type(weAteTheEvent) == "nil" then
+            weAteTheEvent = false
+            print("-- "..os.date("%c",os.time())..": hotkey check result nil? Should not happen; check code...")
+        end
+
+        -- Now turn event watcher back on and return
+
+        eventWatcher:start()
+        return weAteTheEvent
     end
 ):start()
 
-module = setmetatable(module, { __gc = function(self) eventWatcher:stop() end, eventWatcher = eventWatcher })
-
--- doesn't fire unless we save the timer (gc finalizer kicks in too quickly?)
---module.startEventWatcher = timer.doAfter(1, function()
---    print("-- Starting hotkey eventtap")
---    eventWatcher:start()
---    module.startEventWatcher = nil -- we don't need to save the timer after it fires
---end)
+module = setmetatable(module, {
+        __gc = function(self) eventWatcher:stop() end,
+        eventWatcher = eventWatcher  -- right now, for debugging.  May go away.
+})
 
 return module
 
