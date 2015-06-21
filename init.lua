@@ -373,14 +373,14 @@ end
 -- replicate hotkey functions
 
 local eventWatcher ; eventWatcher = et.new({
-        et_events.types.keydown,
-        et_events.types.keyup,
+        et_events.types.keyDown,
+        et_events.types.keyUp,
 
 -- apparently OS X disables eventtaps if it thinks they are slow or odd or just because the moon
 -- is wrong in some way... but at least it's nice enough to tell us.
 
-        et_events.tapdisabledbytimeout,
-        et_events.tapdisabledbyuserinput,
+        et_events.tapDisabledByTimeout,
+        et_events.tapDisabledByUserInput,
 
     }, function(theEvent)
 
@@ -393,8 +393,8 @@ local eventWatcher ; eventWatcher = et.new({
         local weAteTheEvent   = nil
         local whyWeWereCalled = theEvent:getType()
 
-        if (whyWeWereCalled == et_events.types.tapdisabledbytimeout) or
-           (whyWeWereCalled == et_events.types.tapdisabledbyuserinput) then
+        if (whyWeWereCalled == et_events.types.tapDisabledByTimeout) or
+           (whyWeWereCalled == et_events.types.tapDisabledByUserInput) then
                 print("-- "..os.date("%c",os.time())..": hotkey event tap restarted")
                 weAteTheEvent = true
         else
@@ -407,7 +407,7 @@ local eventWatcher ; eventWatcher = et.new({
             local matchedKey = module.duplicatedKey(eventKey)
 
             if matchedKey then
-                if whyWeWereCalled == et_events.types.keydown then
+                if whyWeWereCalled == et_events.types.keyDown then
                     if not matchedKey.fired then
                         matchedKey.fired = true
                         if matchedKey.keyDown then matchedKey.keyDown() end

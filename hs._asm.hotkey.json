@@ -1,0 +1,76 @@
+[
+  {
+    "name": "hs._asm.hotkey",
+    "desc": "Create and manage global keyboard shortcuts",
+    "doc": "Create and manage global keyboard shortcuts",
+    "items": [
+      {
+        "type": "Method",
+        "name": "enable",
+        "def": "hs._asm.hotkey:enable() -> hotkeyObject",
+        "doc": "Enables a hotkey object\n\nParameters:\n * None\n\nReturns:\n * The `hs.hotkey object`"
+      },
+      {
+        "type": "Method",
+        "name": "disable",
+        "def": "hs._asm.hotkey:disable() -> hotkeyObject",
+        "doc": "Disables a hotkey object\n\nParameters:\n * None\n\nReturns:\n * The `hs.hotkey object`"
+      },
+      {
+        "type": "Constructor",
+        "name": "new",
+        "def": "hs._asm.hotkey.new(mods, key, pressedfn[, releasedfn, repeatfn]) -> hotkeyObject or nil",
+        "doc": "Creates a new hotkey\n\nParameters:\n * mods - A table containing the keyboard modifiers required, which should be zero or more of the following strings:\n  * cmd\n  * alt\n  * shift\n  * ctrl\n  * fn\n * key - A string containing the name of a keyboard key (as found in [hs.keycodes.map](hs.keycodes.html#map) ), or if the string begins with a `#` symbol, the remainder of the string will be treated as a raw keycode number\n * pressedfn - A function that will be called when the hotkey has been pressed\n * releasedfn - An optional function that will be called when the hotkey has been released\n * repeatfn - An optional function that will be called when a pressed hotkey is repeating\n\nReturns:\n * An `hs._asm.hotkey` object, or nil if an error occurred"
+      },
+      {
+        "type": "Constructor",
+        "name": "bind",
+        "def": "hs._asm.hotkey.bind(mods, key, pressedfn, releasedfn, repeatfn) -> hotkeyObject or nil",
+        "doc": "Creates a hotkey and enables it immediately\n\nParameters:\n * mods - A table containing the keyboard modifiers required, which should be zero or more of the following strings:\n  * cmd\n  * alt\n  * shift\n  * ctrl\n  * fn\n * key - A string containing the name of a keyboard key (as found in [hs.keycodes.map](hs.keycodes.html#map) ), or if the string begins with a `#` symbol, the remainder of the string will be treated as a raw keycode number\n * pressedfn - A function that will be called when the hotkey has been pressed\n * releasedfn - An optional function that will be called when the hotkey has been released\n * repeatfn - An optional function that will be called when a pressed hotkey is repeating\n\nReturns:\n * An `hs._asm.hotkey` object or nil if an error occurred\n\nNotes:\n * This function is a simple wrapper that performs: `hs._asm.hotkey.new(mods, key, pressedfn, releasedfn, repeatfn):enable()`"
+      }
+    ]
+  },
+  {
+    "name": "hs._asm.hotkey.modal",
+    "desc": "Create/manage modal keyboard shortcut environments",
+    "doc": "Create/manage modal keyboard shortcut environments\n\nThis would be a simple example usage:\n\n    k = hs._asm.hotkey.modal.new({\"cmd\", \"shift\"}, \"d\")\n\n    function k:entered() hs.alert.show('Entered mode') end\n    function k:exited()  hs.alert.show('Exited mode')  end\n\n    k:bind({}, 'escape', function() k:exit() end)\n    k:bind({}, 'J', function() hs.alert.show(\"Pressed J\") end)",
+    "items": [
+      {
+        "type": "Method",
+        "name": "entered",
+        "def": "hs._asm.hotkey.modal:entered()",
+        "doc": "Optional callback for when a modal is entered; default implementation does nothing."
+      },
+      {
+        "type": "Method",
+        "name": "exited",
+        "def": "hs._asm.hotkey.modal:exited()",
+        "doc": "Optional callback for when a modal is exited; default implementation does nothing."
+      },
+      {
+        "type": "Method",
+        "name": "bind",
+        "def": "hs._asm.hotkey.modal:bind(mods, key, pressedfn, releasedfn, repeatfn)",
+        "doc": "Parameters:\n * mods - A table containing the keyboard modifiers required, which should be zero or more of the following strings:\n  * cmd\n  * alt\n  * shift\n  * ctrl\n * key - A string containing the name of a keyboard key (as found in [hs.keycodes.map](hs.keycodes.html#map) ), or if the string begins with a `#` symbol, the remainder of the string will be treated as a raw keycode number\n * pressedfn - A function that will be called when the hotkey has been pressed\n * releasedfn - An optional function that will be called when the hotkey has been released\n * repeatfn - An optional function that will be called when a pressed hotkey is repeating\n\nReturns:\n * An `hs._asm.hotkey.modal` object or nil if an error occurred"
+      },
+      {
+        "type": "Method",
+        "name": "enter",
+        "def": "hs._asm.hotkey.modal:enter()",
+        "doc": "Enables all hotkeys created via `modal:bind` and disables the modal itself.\nCalled automatically when the modal's hotkey is pressed."
+      },
+      {
+        "type": "Method",
+        "name": "exit",
+        "def": "hs._asm.hotkey.modal:exit()",
+        "doc": "Disables all hotkeys created via `modal:bind` and re-enables the modal itself."
+      },
+      {
+        "type": "Constructor",
+        "name": "new",
+        "def": "hs._asm.hotkey.modal.new(mods, key) -> modal",
+        "doc": "Creates a new modal hotkey and enables it.\nWhen mods and key are pressed, all keys bound via `modal:bind` will be enabled.\nThey are disabled when the \"mode\" is exited via `modal:exit()`\nIf mods and key are both nil, the modal state will be created with no top-level hotkey to enter the modal state. This is useful where you want a modal state to exist, but be entered programatically."
+      }
+    ]
+  }
+]
