@@ -11,16 +11,19 @@ local et        = require("hs.eventtap")
 local et_events = require("hs.eventtap.event")
 local timer     = require("hs.timer")
 
+-- since we pass through to the actual utf8 library if it exists, this works for lua 5.2 and lua 5.3
+local utf8      = require("hs.utf8_53")
+
 local definedHotkeys = {}
 
 local modKeys = {
     -- sort order intuited from System Preferences Keyboard Shortcuts screen..
     -- no special for 'fn' that I could find, so using ƒ since it's 'f' like, but "different"
-    ["fn"]    = {"ƒ", 1},
-    ["ctrl"]  = {"⌃", 2},
-    ["alt"]   = {"⌥", 3},
-    ["shift"] = {"⇧", 4},
-    ["cmd"]   = {"⌘", 5},
+    ["fn"]    = {utf8.codepointToUTF8("U+0192"), 1},
+    ["ctrl"]  = {utf8.registeredKeys.ctrl      , 2},
+    ["alt"]   = {utf8.registeredKeys.alt       , 3},
+    ["shift"] = {utf8.registeredKeys.shift     , 4},
+    ["cmd"]   = {utf8.registeredKeys.cmd       , 5},
 }
 
 local sortedMods = function(t, f)
