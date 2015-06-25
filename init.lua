@@ -12,7 +12,7 @@ local et_events = require("hs.eventtap.event")
 local timer     = require("hs.timer")
 
 -- since we pass through to the actual utf8 library if it exists, this works for lua 5.2 and lua 5.3
-local utf8      = require("hs.utf8_53")
+local utf8      = require("hs.utf8")
 
 local definedHotkeys = {}
 
@@ -372,76 +372,82 @@ module.modal.new = function(mods, key)
     return m
 end
 
+local buildEventWatcher = function()
+    return et.new({
+            et_events.types.keyDown,
+            et_events.types.keyUp,
 
--- replicate hotkey functions
+    -- apparently OS X disables eventtaps if it thinks they are slow or odd or just because the moon
+    -- is wrong in some way... but at least it's nice enough to tell us.
 
-local eventWatcher ; eventWatcher = et.new({
-        et_events.types.keyDown,
-        et_events.types.keyUp,
+            et_events.tapDisabledByTimeout,
+            et_events.tapDisabledByUserInput,
 
--- apparently OS X disables eventtaps if it thinks they are slow or odd or just because the moon
--- is wrong in some way... but at least it's nice enough to tell us.
+        }, function(theEvent)
 
-        et_events.tapDisabledByTimeout,
-        et_events.tapDisabledByUserInput,
+            -- long pauses make OS X event tap notifier sad...
+            -- let's see if this helps by stopping it until
+            -- we're done.
 
-    }, function(theEvent)
+            module.eventWatcher:stop()
 
-        -- long pauses make OS X event tap notifier sad...
-        -- let's see if this helps by stopping it until
-        -- we're done.
+            local weAteTheEvent   = nil
+            local whyWeWereCalled = theEvent:getType()
 
-        eventWatcher:stop()
-
-        local weAteTheEvent   = nil
-        local whyWeWereCalled = theEvent:getType()
-
-        if (whyWeWereCalled == et_events.types.tapDisabledByTimeout) or
-           (whyWeWereCalled == et_events.types.tapDisabledByUserInput) then
-                print("-- "..os.date("%c",os.time())..": hotkey event tap restarted")
-                weAteTheEvent = true
-        else
-            local eventKey = {
-                keyCode = theEvent:getKeyCode(),
-                mods    = theEvent:getFlags(),
-                active  = true
-            }
-
-            local matchedKey = module.duplicatedKey(eventKey)
-
-            if matchedKey then
-                if whyWeWereCalled == et_events.types.keyDown then
-                    if not matchedKey.fired then
-                        matchedKey.fired = true
-                        if matchedKey.keyDown then matchedKey.keyDown() end
-                    else
-                        if matchedKey.keyRepeat then matchedKey.keyRepeat() end
-                    end
-                else
-                    matchedKey.fired = false
-                    if matchedKey.keyUp then matchedKey.keyUp() end
-                end
-                weAteTheEvent = true
+            if (whyWeWereCalled == et_events.types.tapDisabledByTimeout) or
+               (whyWeWereCalled == et_events.types.tapDisabledByUserInput) then
+                    print("-- "..os.date("%c",os.time())..": hotkey event tap restarted")
+                    weAteTheEvent = true
             else
-                weAteTheEvent = false
+                local eventKey = {
+                    keyCode = theEvent:getKeyCode(),
+                    mods    = theEvent:getFlags(),
+                    active  = true
+                }
+
+                local matchedKey = module.duplicatedKey(eventKey)
+
+                if matchedKey then
+                    if whyWeWereCalled == et_events.types.keyDown then
+                        if not matchedKey.fired then
+                            matchedKey.fired = true
+                            if matchedKey.keyDown then matchedKey.keyDown() end
+                        else
+                            if matchedKey.keyRepeat then matchedKey.keyRepeat() end
+                        end
+                    else
+                        matchedKey.fired = false
+                        if matchedKey.keyUp then matchedKey.keyUp() end
+                    end
+                    weAteTheEvent = true
+                else
+                    weAteTheEvent = false
+                end
             end
+
+            if type(weAteTheEvent) == "nil" then
+                weAteTheEvent = false
+                print("-- "..os.date("%c",os.time())..": hotkey check result nil? Should not happen; check code...")
+            end
+
+            -- Now turn event watcher back on and return
+
+            module.eventWatcher:start()
+            return weAteTheEvent
         end
+    ):start()
+end
 
-        if type(weAteTheEvent) == "nil" then
-            weAteTheEvent = false
-            print("-- "..os.date("%c",os.time())..": hotkey check result nil? Should not happen; check code...")
+module.eventWatcher = hs.timer.new(1, function()
+        if hs.accessibilityState() then
+            module.eventWatcher:stop()
+            print("-- Starting hs.hotkey eventtap")
+            module.eventWatcher = buildEventWatcher()
         end
-
-        -- Now turn event watcher back on and return
-
-        eventWatcher:start()
-        return weAteTheEvent
-    end
-):start()
+    end):start()
 
 module = setmetatable(module, {
-        __gc = function(self) eventWatcher:stop() end,
-        eventWatcher = eventWatcher  -- right now, for debugging.  May go away.
+        __gc = function(self) if type(self.eventWatcher) == "userdata" then self.eventWatcher:stop() end end,
 })
 
 return module
