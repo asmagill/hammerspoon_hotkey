@@ -26,21 +26,6 @@ local modKeys = {
     ["cmd"]   = {utf8.registeredKeys.cmd       , 5},
 }
 
-local sortedMods = function(t, f)
-    if t then
-        local a = {} ; for m in pairs(t) do table.insert(a, m) end
-        table.sort(a, function(m,n) return modKeys[m][2] < modKeys[n][2] end)
-        local i = 0                -- iterator variable
-        local iter = function ()   -- iterator function
-            i = i + 1
-            if a[i] == nil then return nil else return a[i], t[a[i]] end
-        end
-        return iter
-    else
-        return function() return nil end
-    end
-end
-
 -- Problem keys... these set the fn=true mod whenever they are pressed.
 local problemKeys = {
     [125] = "down",
@@ -134,7 +119,10 @@ local _hotKey_metatable = {
                       local o = (self.active and "active" or "inactive").." "..
                                 (self.owner  and "modal"  or "global").." hotkey '"
                       local m = ""
-                      for k,v in sortedMods(self.mods) do m = m..modKeys[k][1] end
+                      for k,v in fnutils.sortByKeys(self.mods,
+                          function(m,n) return modKeys[m][2] < modKeys[n][2] end) do
+                              m = m..modKeys[k][1]
+                      end
                       o = o..(m ~= "" and m.." " or "")..keycodes.map[self.keyCode].."'"
                       if self.label then o = o..": "..self.label end
                       return o
