@@ -8,13 +8,25 @@
         "type": "Method",
         "name": "enable",
         "def": "hs._asm.hotkey:enable() -> hotkeyObject",
-        "doc": "Enables a hotkey object\n\nParameters:\n * None\n\nReturns:\n * The `hs.hotkey object`"
+        "doc": "Enables a hotkey object\n\nParameters:\n * None\n\nReturns:\n * The `hs._asm.hotkey` object"
       },
       {
         "type": "Method",
         "name": "disable",
         "def": "hs._asm.hotkey:disable() -> hotkeyObject",
-        "doc": "Disables a hotkey object\n\nParameters:\n * None\n\nReturns:\n * The `hs.hotkey object`"
+        "doc": "Disables a hotkey object\n\nParameters:\n * None\n\nReturns:\n * The `hs._asm.hotkey` object"
+      },
+      {
+        "type": "Method",
+        "name": "desc",
+        "def": "hs._asm.hotkey:desc(label) -> hotkeyObject",
+        "doc": "Assign a human friendly description to this hotkey\n\nParameters:\n * label - the human friendly label you want assigned to this hotkey\n\nReturns:\n * The `hs._asm.hotkey` object"
+      },
+      {
+        "type": "Method",
+        "name": "getDesc",
+        "def": "hs._asm.hotkey:getDesc() -> label",
+        "doc": "Returns the human friendly description to this hotkey\n\nParameters:\n * None\n\nReturns:\n * The human friendly description for this `hs._asm.hotkey` object"
       },
       {
         "type": "Constructor",
@@ -27,6 +39,24 @@
         "name": "bind",
         "def": "hs._asm.hotkey.bind(mods, key, pressedfn, releasedfn, repeatfn) -> hotkeyObject or nil",
         "doc": "Creates a hotkey and enables it immediately\n\nParameters:\n * mods - A table containing the keyboard modifiers required, which should be zero or more of the following strings:\n  * cmd\n  * alt\n  * shift\n  * ctrl\n  * fn\n * key - A string containing the name of a keyboard key (as found in [hs.keycodes.map](hs.keycodes.html#map) ), or if the string begins with a `#` symbol, the remainder of the string will be treated as a raw keycode number\n * pressedfn - A function that will be called when the hotkey has been pressed\n * releasedfn - An optional function that will be called when the hotkey has been released\n * repeatfn - An optional function that will be called when a pressed hotkey is repeating\n\nReturns:\n * An `hs._asm.hotkey` object or nil if an error occurred\n\nNotes:\n * This function is a simple wrapper that performs: `hs._asm.hotkey.new(mods, key, pressedfn, releasedfn, repeatfn):enable()`"
+      },
+      {
+        "type": "Function",
+        "name": "isHotkeyEventtapEnabled",
+        "def": "hs._asm.hotkey.isHotkeyEventtapEnabled() -> bool",
+        "doc": "Determine whether or not the hotkey eventtap is enabled.\n\nParameters:\n * None\n\nReturns:\n * True if the hotkey eventtap is enabled or false if it is not."
+      },
+      {
+        "type": "Function",
+        "name": "enableHotkeyEventtap",
+        "def": "hs._asm.hotkey.enableHotkeyEventtap() -> bool",
+        "doc": "Enable the hotkey eventtap.\n\nParameters:\n * None\n\nReturns:\n * True if the hotkey eventtap is enabled or false if it is not.\n\nNotes:\n * This function is called by the modules initialization code, so it is unlikely you will ever need to call it directly unless you have programmatically disabled all hotkeys and are now re-enabling them.\n * The most likely cause of failure is if Accessibility is not enabled (check Hammerspoon preferences).\n * If the failure was caused by Accessibility being disabled, you may have to restart Hammerspoon after enabling it before this function will succeed.\n   * The initialization process checks for this and delays calling this function until Accessibility is enabled, so unless you are calling this function directly from elsewhere, the restart will usually not be necessary."
+      },
+      {
+        "type": "Function",
+        "name": "disableHotkeyEventtap",
+        "def": "hs._asm.hotkey.disableHotkeyEventtap() -> bool",
+        "doc": "Disable the hotkey eventtap.\n\nParameters:\n * None\n\nReturns:\n * True if the hotkey eventtap is not enabled (we succeeded in disabling it or it was already disabled) or false if we were unable to disable it for some reason.\n\nNotes:\n * This function is called by the modules garbage collection code, so it is unlikely you will ever need to call it directly unless you are programmatically disabling all hotkeys for some reason.\n * This function does not affect hotkey definitions or what hotkeys are currently enabled or disabled -- you could re-enable hotkeys via `hs._asm.hotkey.enableHotkeyEventtap()` and return to the exact set of registered hotkeys as were previously in place.\n * This function also does not affect the binding of new hotkeys -- they just won't do anything until the Hotkey eventtap is restarted."
       }
     ]
   },
@@ -57,13 +87,25 @@
         "type": "Method",
         "name": "enter",
         "def": "hs._asm.hotkey.modal:enter()",
-        "doc": "Enables all hotkeys created via `modal:bind` and disables the modal itself.\nCalled automatically when the modal's hotkey is pressed."
+        "doc": "Enables all hotkeys created via `modal:bind` and disables the modal's trigger hotkey, if defined. Called automatically when the modal's hotkey is pressed, or you can invoke it directly to activate the hotkey modal state.\n\nParameters:\n * None\n\nReturns:\n * The `hs._asm.hotkey.model` object"
       },
       {
         "type": "Method",
         "name": "exit",
         "def": "hs._asm.hotkey.modal:exit()",
-        "doc": "Disables all hotkeys created via `modal:bind` and re-enables the modal itself."
+        "doc": "Disables all hotkeys created via `modal:bind` and re-enables the modal's trigger hotkey.\n\nParameters:\n * None\n\nReturns:\n * The `hs._asm.hotkey.model` object"
+      },
+      {
+        "type": "Method",
+        "name": "desc",
+        "def": "hs._asm.hotkey.modal:desc(label) -> hotkeyObject",
+        "doc": "Assign a human friendly description to this modal hotkey trigger.\n\nParameters:\n * label - the human friendly label you want assigned to this modal hotkey trigger.\n\nReturns:\n * The `hs._asm.hotkey.model` object"
+      },
+      {
+        "type": "Method",
+        "name": "getDesc",
+        "def": "hs._asm.hotkey.modal:getDesc() -> label",
+        "doc": "Returns the human friendly description to this modal hotkey trigger.\n\nParameters:\n * None\n\nReturns:\n * The human friendly description for this `hs._asm.hotkey.model` object"
       },
       {
         "type": "Constructor",

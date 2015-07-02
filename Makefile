@@ -13,25 +13,35 @@ EXTRA_CFLAGS ?= -fobjc-arc -I ${LUA_INCLUDES}
 CFLAGS  += $(DEBUG_CFLAGS) -Wall -Wextra $(EXTRA_CFLAGS)
 LDFLAGS += -dynamiclib -undefined dynamic_lookup $(EXTRA_LDFLAGS)
 
+ifeq ($(wildcard $(CURDIR)/$(OBJCFILE)),)
+
 ### Lua Only
+
+DOC_SOURCES = $(LUAFILE)
 
 all: verify
 
 install: install-lua
 
-### Lua and Obj-C
+else
 
-#all: verify $(SOFILE)
+### Lua and Objective-C live together in perfect harmony
 
-#$(SOFILE): $(OBJCFILE)
-#	$(CC) $(OBJCFILE) $(CFLAGS) $(LDFLAGS) -o $@
+DOC_SOURCES = $(LUAFILE) $(OBJCFILE)
 
-#install: install-objc install-lua
+all: verify $(SOFILE)
+
+$(SOFILE): $(OBJCFILE)
+	$(CC) $(OBJCFILE) $(CFLAGS) $(LDFLAGS) -o $@
+
+install: install-objc install-lua
+
+endif
 
 ### Common
 
 verify: $(LUAFILE)
-	luac -p $(LUAFILE) && echo "Passed" || echo "Failed"
+	luac-5.3 -p $(LUAFILE) && echo "Passed" || echo "Failed"
 
 install-objc: $(SOFILE)
 	mkdir -p $(PREFIX)/$(MODULE)
@@ -43,12 +53,12 @@ install-lua: $(LUAFILE)
 
 docs: $(DOC_FILE)
 
+$(DOC_FILE): $(DOC_SOURCES)
+	find . -type f \( -name '*.lua' -o -name '*.m' \) -not -name 'template.*' -not -path './_*' -exec cat {} + | __doc_tools/gencomments | __doc_tools/genjson > $@
+
 install-docs: docs
 	mkdir -p $(PREFIX)/$(MODULE)
 	install -m 0644 $(DOC_FILE) $(PREFIX)/$(MODULE)
-
-$(DOC_FILE): $(LUAFILE)
-	find . -type f \( -name '*.lua' -o -name '*.m' \) -not -name 'template.*' -not -path './_*' -exec cat {} + | __doc_tools/gencomments | __doc_tools/genjson > $@
 
 clean:
 	rm -v -rf $(SOFILE) *.dSYM $(DOC_FILE)
@@ -59,4 +69,4 @@ uninstall:
 	rm -v -f $(PREFIX)/$(MODULE)/$(SOFILE)
 	rmdir -p $(PREFIX)/$(MODULE) ; exit 0
 
-.PHONY: all clean uninstall
+.PHONY: all clean uninstall verify docs install install-objc install-lua install-docs

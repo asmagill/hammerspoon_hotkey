@@ -5,6 +5,17 @@ local module    = {
 ---
 }
 
+local internalFunctions = require("hs._asm.hotkey.internal")
+internalFunctions.__gc = function(self)
+    if type(self.eventWatcher) == "userdata" then self.eventWatcher:stop() end
+    if internalFunctions.isHotkeyEventtapEnabled() then internalFunctions.disableHokeyEventtap() end
+end
+
+module = setmetatable(module, internalFunctions)
+module.enableHotkeyEventtap     = internalFunctions.enableHotkeyEventtap
+module.disableHotkeyEventtap    = internalFunctions.disableHotkeyEventtap
+module.isHotkeyEventtapEnabled = internalFunctions.isHotkeyEventtapEnabled
+
 local keycodes  = require("hs.keycodes")
 local fnutils   = require("hs.fnutils")
 local et        = require("hs.eventtap")
@@ -19,11 +30,26 @@ local definedHotkeys = {}
 local modKeys = {
     -- sort order intuited from System Preferences Keyboard Shortcuts screen..
     -- no special for 'fn' that I could find, so using ƒ since it's 'f' like, but "different"
-    ["fn"]    = {utf8.codepointToUTF8("U+0192"), 1},
-    ["ctrl"]  = {utf8.registeredKeys.ctrl      , 2},
-    ["alt"]   = {utf8.registeredKeys.alt       , 3},
-    ["shift"] = {utf8.registeredKeys.shift     , 4},
-    ["cmd"]   = {utf8.registeredKeys.cmd       , 5},
+
+    -- From CGEventTypes.h and IOLLEvent.h -- this is what the Flag Mask will be made of.
+    --
+    --   kCGEventFlagMaskShift =               NX_SHIFTMASK,
+    --   kCGEventFlagMaskControl =             NX_CONTROLMASK,
+    --   kCGEventFlagMaskAlternate =           NX_ALTERNATEMASK,
+    --   kCGEventFlagMaskCommand =             NX_COMMANDMASK,
+    --   kCGEventFlagMaskSecondaryFn =         NX_SECONDARYFNMASK,
+    --
+    --   #define    NX_SHIFTMASK        0x00020000
+    --   #define    NX_CONTROLMASK      0x00040000
+    --   #define    NX_ALTERNATEMASK    0x00080000
+    --   #define    NX_COMMANDMASK      0x00100000
+    --   #define    NX_SECONDARYFNMASK  0x00800000
+
+    ["fn"]    = {utf8.codepointToUTF8("U+0192"), 1, 0x00800000},
+    ["ctrl"]  = {utf8.registeredKeys.ctrl      , 2, 0x00040000},
+    ["alt"]   = {utf8.registeredKeys.alt       , 3, 0x00080000},
+    ["shift"] = {utf8.registeredKeys.shift     , 4, 0x00020000},
+    ["cmd"]   = {utf8.registeredKeys.cmd       , 5, 0x00100000},
 }
 
 -- Problem keys... these set the fn=true mod whenever they are pressed.
@@ -65,10 +91,29 @@ local problemKeys = {
 --    [81] = "pad=",      -- assumed not, but I also don't have it on my keyboard
 }
 
+local modsTableToFlagCode = function(modTable)
+    local result = 0
+    for i,v in pairs(modTable) do
+        if modKeys[i] then result = result | modKeys[i][3] end
+    end
+    return result
+end
+
+local flagCodeToModsTable = function(flagCode)
+    local theTable = {}
+    for i,v in pairs(modKeys) do
+--        print(string.format("%08X",v[3] & flagCode))
+        if (v[3] & flagCode) ~= 0 then theTable[i] = true end
+    end
+--    print(string.format("%08X",flagCode),inspect(theTable))
+    return theTable
+end
+
 -- defined out here because they are used in multiple places...
 local keyEnable = function(self)
     self.active = true
     self.fired = false
+    internalFunctions.registerKeyToWatch(self.keyCode, modsTableToFlagCode(self.mods))
 
     local testKey = module.duplicatedKey(self)
     if testKey then
@@ -79,6 +124,8 @@ end
 local keyDisable = function(self)
     self.active = false
     self.fired = false
+    internalFunctions.unregisterKeyToWatch(self.keyCode, modsTableToFlagCode(self.mods))
+
     return self
 end
 
@@ -92,7 +139,7 @@ local _hotKey_metatable = {
 ---  * None
 ---
 --- Returns:
----  * The `hs.hotkey object`
+---  * The `hs._asm.hotkey` object
         enable  = keyEnable,
 --- hs._asm.hotkey:disable() -> hotkeyObject
 --- Method
@@ -102,14 +149,32 @@ local _hotKey_metatable = {
 ---  * None
 ---
 --- Returns:
----  * The `hs.hotkey object`
+---  * The `hs._asm.hotkey` object
         disable = keyDisable,
+--- hs._asm.hotkey:desc(label) -> hotkeyObject
+--- Method
+--- Assign a human friendly description to this hotkey
+---
+--- Parameters:
+---  * label - the human friendly label you want assigned to this hotkey
+---
+--- Returns:
+---  * The `hs._asm.hotkey` object
         desc    = function(self, x)
                       if type(x) ~= nil then
                           self.label = tostring(x)
                       end
                       return self
                   end,
+--- hs._asm.hotkey:getDesc() -> label
+--- Method
+--- Returns the human friendly description to this hotkey
+---
+--- Parameters:
+---  * None
+---
+--- Returns:
+---  * The human friendly description for this `hs._asm.hotkey` object
         getDesc = function(self) return self.label end,
         label   = nil,
         owner   = nil,
@@ -184,7 +249,7 @@ module.new = function(mods, key, pressedfn, releasedfn, repeatfn)
     end
 
     if not keycode then
-        print("Error: Invalid key: "..key)
+        error("Error: Invalid key: "..key, 2)
         return nil
     end
 
@@ -302,34 +367,64 @@ local _modal_metatable = {
 
 --- hs._asm.hotkey.modal:enter()
 --- Method
---- Enables all hotkeys created via `modal:bind` and disables the modal itself.
---- Called automatically when the modal's hotkey is pressed.
+--- Enables all hotkeys created via `modal:bind` and disables the modal's trigger hotkey, if defined. Called automatically when the modal's hotkey is pressed, or you can invoke it directly to activate the hotkey modal state.
+---
+--- Parameters:
+---  * None
+---
+--- Returns:
+---  * The `hs._asm.hotkey.model` object
         enter = function(self)
             if (self.k) then
                 self.k:disable()
             end
             fnutils.each(self.keys, keyEnable)
-            self.entered()
+            self:entered()
             return self
         end,
 
 --- hs._asm.hotkey.modal:exit()
 --- Method
---- Disables all hotkeys created via `modal:bind` and re-enables the modal itself.
+--- Disables all hotkeys created via `modal:bind` and re-enables the modal's trigger hotkey.
+---
+--- Parameters:
+---  * None
+---
+--- Returns:
+---  * The `hs._asm.hotkey.model` object
         exit = function(self)
             fnutils.each(self.keys, keyDisable)
             if (self.k) then
                 self.k:enable()
             end
-            self.exited()
+            self:exited()
             return self
         end,
+--- hs._asm.hotkey.modal:desc(label) -> hotkeyObject
+--- Method
+--- Assign a human friendly description to this modal hotkey trigger.
+---
+--- Parameters:
+---  * label - the human friendly label you want assigned to this modal hotkey trigger.
+---
+--- Returns:
+---  * The `hs._asm.hotkey.model` object
         desc    = function(self, x)
                       if type(x) ~= nil then
                           self.label = tostring(x)
+                          if self.k then self.k:desc(x) end
                       end
                       return self
                   end,
+--- hs._asm.hotkey.modal:getDesc() -> label
+--- Method
+--- Returns the human friendly description to this modal hotkey trigger.
+---
+--- Parameters:
+---  * None
+---
+--- Returns:
+---  * The human friendly description for this `hs._asm.hotkey.model` object
         getDesc = function(self) return self.label end,
         label   = nil,
     },
@@ -360,83 +455,43 @@ module.modal.new = function(mods, key)
     return m
 end
 
-local buildEventWatcher = function()
-    return et.new({
-            et_events.types.keyDown,
-            et_events.types.keyUp,
+local hotkeyFunctionDispatcher = function(keycode, flagcode, isKeyDown)
 
-    -- apparently OS X disables eventtaps if it thinks they are slow or odd or just because the moon
-    -- is wrong in some way... but at least it's nice enough to tell us.
+    local eventKey = {
+        keyCode = keycode,
+        mods    = flagCodeToModsTable(flagcode),
+        active  = true
+    }
 
-            et_events.tapDisabledByTimeout,
-            et_events.tapDisabledByUserInput,
+    local matchedKey = module.duplicatedKey(eventKey)
 
-        }, function(theEvent)
-
-            -- long pauses make OS X event tap notifier sad...
-            -- let's see if this helps by stopping it until
-            -- we're done.
-
-            module.eventWatcher:stop()
-
-            local weAteTheEvent   = nil
-            local whyWeWereCalled = theEvent:getType()
-
-            if (whyWeWereCalled == et_events.types.tapDisabledByTimeout) or
-               (whyWeWereCalled == et_events.types.tapDisabledByUserInput) then
-                    print("-- "..os.date("%c",os.time())..": hotkey event tap restarted")
-                    weAteTheEvent = true
+    if matchedKey then
+        if isKeyDown then
+            if not matchedKey.fired then
+                matchedKey.fired = true
+                if matchedKey.keyDown then matchedKey.keyDown() end
             else
-                local eventKey = {
-                    keyCode = theEvent:getKeyCode(),
-                    mods    = theEvent:getFlags(),
-                    active  = true
-                }
-
-                local matchedKey = module.duplicatedKey(eventKey)
-
-                if matchedKey then
-                    if whyWeWereCalled == et_events.types.keyDown then
-                        if not matchedKey.fired then
-                            matchedKey.fired = true
-                            if matchedKey.keyDown then matchedKey.keyDown() end
-                        else
-                            if matchedKey.keyRepeat then matchedKey.keyRepeat() end
-                        end
-                    else
-                        matchedKey.fired = false
-                        if matchedKey.keyUp then matchedKey.keyUp() end
-                    end
-                    weAteTheEvent = true
-                else
-                    weAteTheEvent = false
-                end
+                if matchedKey.keyRepeat then matchedKey.keyRepeat() end
             end
-
-            if type(weAteTheEvent) == "nil" then
-                weAteTheEvent = false
-                print("-- "..os.date("%c",os.time())..": hotkey check result nil? Should not happen; check code...")
-            end
-
-            -- Now turn event watcher back on and return
-
-            module.eventWatcher:start()
-            return weAteTheEvent
+        else
+            matchedKey.fired = false
+            if matchedKey.keyUp then matchedKey.keyUp() end
         end
-    ):start()
+    else
+        print("-- hotkey dispatcher: unregistered key ("..tostring(keycode)..", "..string.format("%08X",flagcode)..")")
+    end
 end
 
 module.eventWatcher = hs.timer.new(1, function()
         if hs.accessibilityState() then
             module.eventWatcher:stop()
-            print("-- Starting hs.hotkey eventtap")
-            module.eventWatcher = buildEventWatcher()
+            print("-- Starting hs._asm.hotkey eventtap")
+            internalFunctions.enableHotkeyEventtap()
+            module.eventWatcher = nil
         end
     end):start()
 
-module = setmetatable(module, {
-        __gc = function(self) if type(self.eventWatcher) == "userdata" then self.eventWatcher:stop() end end,
-})
+internalFunctions.registerLuaCallbackPart(hotkeyFunctionDispatcher)
 
 return module
 
