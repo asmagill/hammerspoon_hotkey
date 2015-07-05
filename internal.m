@@ -115,18 +115,19 @@ CGEventRef hotkeyCallback(CGEventTapProxy __unused proxy, CGEventType type, CGEv
 
 //  apparently OS X disables eventtaps if it thinks they are slow or odd or just because the moon
 //  is wrong in some way... but at least it's nice enough to tell us.
+
     if ((type == kCGEventTapDisabledByTimeout) || (type == kCGEventTapDisabledByUserInput)) {
+//         NSDateFormatter *format = [[NSDateFormatter alloc] init];
+//         [format setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
+//         NSDate *now = [NSDate date];
+//         NSString *nsstr = [format stringFromDate:now];
+//
+//         lua_getglobal(L, "print");
+//         lua_pushstring(L, [[NSString stringWithFormat:@"-- %@: (%d) hotkey event tap restarted", nsstr, type] UTF8String]) ;
+//         lua_call(L, 1, 0) ;
 
-        NSDateFormatter *format = [[NSDateFormatter alloc] init];
-        [format setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
-        NSDate *now = [NSDate date];
-        NSString *nsstr = [format stringFromDate:now];
-
-        lua_getglobal(L, "print");
-        lua_pushstring(L, [[NSString stringWithFormat:@"-- %@: (%d) hotkey event tap restarted", nsstr, type] UTF8String]) ;
-        lua_call(L, 1, 0) ;
+        CLS_NSLOG(@"hotkey eventtap restarted: (%d)", type) ;
         CGEventTapEnable(hotkeyTap, true);
-        weAteTheEvent = YES ;
     } else {
         NSInteger flags   = CGEventGetFlags(event) & FLAGS_WE_WANT ;
         NSInteger keycode = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode) ;

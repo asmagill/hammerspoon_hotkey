@@ -91,29 +91,11 @@ local problemKeys = {
 --    [81] = "pad=",      -- assumed not, but I also don't have it on my keyboard
 }
 
-local modsTableToFlagCode = function(modTable)
-    local result = 0
-    for i,v in pairs(modTable) do
-        if modKeys[i] then result = result | modKeys[i][3] end
-    end
-    return result
-end
-
-local flagCodeToModsTable = function(flagCode)
-    local theTable = {}
-    for i,v in pairs(modKeys) do
---        print(string.format("%08X",v[3] & flagCode))
-        if (v[3] & flagCode) ~= 0 then theTable[i] = true end
-    end
---    print(string.format("%08X",flagCode),inspect(theTable))
-    return theTable
-end
-
 -- defined out here because they are used in multiple places...
 local keyEnable = function(self)
     self.active = true
     self.fired = false
-    internalFunctions.registerKeyToWatch(self.keyCode, modsTableToFlagCode(self.mods))
+    internalFunctions.registerKeyToWatch(self.keyCode, self.mods)
 
     local testKey = module.duplicatedKey(self)
     if testKey then
@@ -124,7 +106,7 @@ end
 local keyDisable = function(self)
     self.active = false
     self.fired = false
-    internalFunctions.unregisterKeyToWatch(self.keyCode, modsTableToFlagCode(self.mods))
+    internalFunctions.unregisterKeyToWatch(self.keyCode, self.mods)
 
     return self
 end
@@ -184,9 +166,11 @@ local _hotKey_metatable = {
                       local o = (self.active and "active" or "inactive").." "..
                                 (self.owner  and "modal"  or "global").." hotkey '"
                       local m = ""
-                      for k,v in fnutils.sortByKeys(self.mods,
+                      for k,v in fnutils.sortByKeys(modKeys,
                           function(m,n) return modKeys[m][2] < modKeys[n][2] end) do
-                              m = m..modKeys[k][1]
+                              if not (problemKeys[self.keyCode] and k == "fn") and (self.mods & modKeys[k][3]) ~= 0 then
+                                  m = m..modKeys[k][1]
+                              end
                       end
                       o = o..(m ~= "" and m.." " or "")..keycodes.map[self.keyCode].."'"
                       if self.label then o = o..": "..self.label end
@@ -207,11 +191,9 @@ end
 module.keys    = definedHotkeys -- remove after testing
 
 module.sameKey = function(k1, k2) -- compares active, mods, and keyCode hash tags only
-    if k1.active  ~= k2.active  then return false end
-    if k1.keyCode ~= k2.keyCode then return false end
-    for i in pairs(k1.mods) do if k1.mods[i] ~= k2.mods[i] then return false end end
-    for i in pairs(k2.mods) do if k1.mods[i] ~= k2.mods[i] then return false end end
-    return true
+    return  (k1.active  == k2.active)  and
+            (k1.keyCode == k2.keyCode) and
+            (k1.mods    == k2.mods)
 end
 module.duplicatedKey = function(k1)
     for _,k2 in ipairs(definedHotkeys) do
@@ -257,20 +239,20 @@ module.new = function(mods, key, pressedfn, releasedfn, repeatfn)
     local _releasedfn = releasedfn and wrap(releasedfn)
     local _repeatfn   = repeatfn   and wrap(repeatfn)
 
-    local modsAsHash = {}
+    local modsFlag = 0
     for _,m in ipairs(mods) do
         for i,v in pairs(modKeys) do
             if tostring(m):lower() == i or tostring(m):lower() == v[1] then
-                modsAsHash[i] = true
+                modsFlag = modsFlag | v[3]
             end
         end
     end
 
     -- keys which always return with 'fn' set
-    if problemKeys[keycode] then modsAsHash["fn"] = true end
+    if problemKeys[keycode] then modsFlag = modsFlag | modKeys["fn"][3] end
 
     local k = setmetatable({
-                              mods      = modsAsHash,
+                              mods      = modsFlag,
                               keyCode   = keycode,
                               keyDown   = _pressedfn,
                               keyUp     = _releasedfn,
@@ -459,7 +441,7 @@ local hotkeyFunctionDispatcher = function(keycode, flagcode, isKeyDown)
 
     local eventKey = {
         keyCode = keycode,
-        mods    = flagCodeToModsTable(flagcode),
+        mods    = flagcode,
         active  = true
     }
 
